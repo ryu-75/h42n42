@@ -1,0 +1,39 @@
+# Dune build files
+_build/
+*.exe
+*.bc.js
+*.cm[ioxa]
+*.o
+*.cmi
+*.cmo
+*.cma
+*.cmxa
+*.cmxs
+*.annot
+*.cache
+
+# OPAM local switches
+_*.opam
+.opam/
+
+# Vim / Emacs / IDE files
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Node / JS output (if you use JS bundlers)
+node_modules/
+dist/
+*.js.map
+
+# Logs
+*.log
+
+# Temporary files
+*.bak
+*.tmp
+*.orig

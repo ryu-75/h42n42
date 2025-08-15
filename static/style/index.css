@@ -1,0 +1,32 @@
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 1.25rem;
+}
+
+#canvas {
+    border: 12px groove black;
+    width: 100%;
+    height: auto;
+    max-width: 1800px;
+}
+
+@media screen and (max-width: 480px) {
+  #canvas {
+    width: 100%;
+    height: auto;
+  }
+}
