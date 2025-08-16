@@ -1,35 +1,70 @@
+open Types
+open Draws
+
 module Html = Js_of_ocaml.Dom_html
-module Dom = Js_of_ocaml.Dom
 module Js = Js_of_ocaml.Js
 
-let canvas_width = 1800.  (* Added a dot to make it a float *)
+let canvas_width = 1800.
 let canvas_height = 900.
-  
-let draw_the_hospital context =
-  context##.fillStyle := Js.string "rgb(226, 33, 33)";
-  context##fillRect (canvas_width *. 0.1) 0. 20. canvas_height
 
-let draw_warzone context =
-  context##.fillStyle := Js.string "rgba(184, 184, 184, 0.6)";
-  context##fillRect (canvas_width *. 0.1 +. 20.) 0. (canvas_width *. 0.75 -. 20.) canvas_height
+let update_creet_pos creet =
+  creet.x <- creet.x +. creet.vx;
+  creet.y <- creet.y +. creet.vy;
 
-let draw_death_line context =
-  context##.fillStyle := Js.string "rgb(27, 176, 133)";
-  context##fillRect (canvas_width *. 0.85) 0. 60. canvas_height
+  if creet.x -. creet.radius <= 0. || creet.x +. creet.radius >= canvas_width then creet.vx <- -.creet.vx;
+  if creet.y -. creet.radius <= 0. || creet.y +. creet.radius >= canvas_height then creet.vy <- -.creet.vy
 
-(* TODO: Draw a Creet *)
+let rec animate ctx creet =
+  (* Efface le canvas *)
+  ctx##.fillStyle := Js.string "white";
+  ctx##fillRect 0. 0. canvas_width canvas_height;
 
-(* Load the canvas and draw the elements *)
+  (* Redessine le décor *)
+  draw_the_hospital ctx canvas_width canvas_height;
+  draw_warzone ctx canvas_width canvas_height;
+  draw_death_line ctx canvas_width canvas_height;
+  display_creet_pos ctx creet;
+
+  (* Met à jour la position *)
+  update_creet_pos creet;
+
+  (* Redessine la créature *)
+  ctx##beginPath;
+  draw_a_creet ctx "rgb(226, 33, 33)" creet 40.;
+  ctx##stroke;
+
+  (* Relance la boucle d’animation *)
+  let _ = Html.window##requestAnimationFrame (Js.wrap_callback (fun _ -> animate ctx creet)) in
+  ()
+;;
+
+
 let onload _ =
   let canvas = Html.getElementById "canvas" in
   (match Js.Opt.to_option (Html.CoerceTo.canvas canvas) with
    | Some canvas_element ->
        let c = canvas_element##getContext Html._2d_ in
-       draw_the_hospital c;
-       draw_death_line c;
-       draw_warzone c
+       let random_x = Random.float (canvas_width -. 40.) in
+       let random_y = Random.float (canvas_height -. 40.) in
+       let radius = 25. +. Random.float 20. in
+       let creet = { Types.x = random_x; y = random_y; vx = 5.; vy = 5.; radius = radius } in
+       animate c creet;
    | None -> ());
   Js._true
+;;
+
+let () = Html.window##.onload := Html.handler onload
 
 
-let () = Html.window##.onload := Html.handler onload 
+(* TODO: 
+  - Added a second type of creature
+  - Handle collision between creatures
+  - Add a way to poison the creatures
+  - Add a way to heal the creatures
+  - Add a way to speed up the creatures
+  - Add a way to slow down the creatures
+  - Add a way to increase the radius of the creatures
+  - Add a way to decrease the radius of the creatures
+  - Add a way to increase the speed of the creatures
+  - Add a way to decrease the speed of the creatures
+**)
