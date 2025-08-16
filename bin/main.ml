@@ -6,6 +6,7 @@ module Js = Js_of_ocaml.Js
 
 let canvas_width = 1800.
 let canvas_height = 900.
+let radius = 60.
 
 let update_creet_pos creet =
   creet.x <- creet.x +. creet.vx;
@@ -30,7 +31,7 @@ let rec animate ctx creet =
 
   (* Redessine la créature *)
   ctx##beginPath;
-  draw_a_creet ctx "rgb(226, 33, 33)" creet 40.;
+  draw_a_creet ctx "rgb(226, 33, 33)" creet radius;
   ctx##stroke;
 
   (* Relance la boucle d’animation *)
@@ -46,8 +47,8 @@ let onload _ =
        let c = canvas_element##getContext Html._2d_ in
        let random_x = Random.float (canvas_width -. 40.) in
        let random_y = Random.float (canvas_height -. 40.) in
-       let radius = 25. +. Random.float 20. in
-       let creet = { Types.x = random_x; y = random_y; vx = 5.; vy = 5.; radius = radius } in
+       let radius = radius +. Random.float 0. in
+       let creet = { Types.x = random_x; y = random_y; vx = 1.; vy = 1.; radius = radius } in
        animate c creet;
    | None -> ());
   Js._true
@@ -57,6 +58,7 @@ let () = Html.window##.onload := Html.handler onload
 
 
 (* TODO: 
+  - Handle the drag when clicking on a creature
   - Added a second type of creature
   - Handle collision between creatures
   - Add a way to poison the creatures
