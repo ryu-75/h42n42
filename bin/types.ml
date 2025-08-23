@@ -11,4 +11,5 @@ type creet = {
   mutable berserk: bool;
   mutable mean: bool;
   mutable is_dragging: bool;
+  mutable infection_time: float;
 }
