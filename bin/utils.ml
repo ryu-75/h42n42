@@ -14,15 +14,16 @@ let setup_drag_system canvas creets width height =
     let mouse_x = float_of_int mouse_event##.clientX -. rect##.left in 
     let mouse_y = float_of_int mouse_event##.clientY -. rect##.top in
 
-    (* Find which creature is clicked *)
     List.iter (fun creet ->
-      creet.is_dragging <- true;
-      if abs_float (mouse_x -. creet.x) <= creet.radius && 
-         abs_float (mouse_y -. creet.y) <= creet.radius 
-      then begin
-        current_dragging := Some creet;
-        offset_x := mouse_x -. creet.x;
-        offset_y := mouse_y -. creet.y;
+      if not creet.berserk && not creet.mean then begin
+        creet.is_dragging <- true;
+        if abs_float (mouse_x -. creet.x) <= creet.radius && 
+           abs_float (mouse_y -. creet.y) <= creet.radius 
+        then begin
+          current_dragging := Some creet;
+          offset_x := mouse_x -. creet.x;
+          offset_y := mouse_y -. creet.y;
+        end
       end
     ) creets;
 
@@ -125,4 +126,85 @@ let handle_collision creet1 creet2 =
       end
     end
   end
+
+let find_closest_mean_target mean_creet creets =
+  let non_infected_targets = List.filter (fun c -> 
+    not c.mean && not c.is_infected && c != mean_creet
+  ) creets in
+  
+  match non_infected_targets with
+  | [] -> None
+  | _ -> 
+    let closest = List.fold_left (fun acc creet ->
+      let dist_acc = distance mean_creet.x mean_creet.y acc.x acc.y in
+      let dist_creet = distance mean_creet.x mean_creet.y creet.x creet.y in
+      if dist_creet < dist_acc then creet else acc
+    ) (List.hd non_infected_targets) (List.tl non_infected_targets) in
+    Some closest
+
+let mean_pursue_target mean_creet target_creet speed =
+  let dx = target_creet.x -. mean_creet.x in
+  let dy = target_creet.y -. mean_creet.y in
+  let dist = distance mean_creet.x mean_creet.y target_creet.x target_creet.y in
+  
+  if dist > 0. then begin
+    let norm_dx = dx /. dist *. speed in
+    let norm_dy = dy /. dist *. speed in
+    
+    mean_creet.x <- mean_creet.x +. norm_dx;
+    mean_creet.y <- mean_creet.y +. norm_dy;
+    
+    mean_creet.vx <- norm_dx;
+    mean_creet.vy <- norm_dy;
+  end
+
+let mean_purchase_creet mean_creet creets speed =
+  if mean_creet.mean && mean_creet.is_infected then begin
+    match find_closest_mean_target mean_creet creets with
+    | Some target -> 
+      let reduced_speed = speed *. 0.85 in
+      mean_pursue_target mean_creet target reduced_speed
+    | None -> ()
+  end
 ;;
+
+let last_speed_increase_time = ref (Js.to_float (Js.date##now) /. 1000.0)
+let last_reproduction_time = ref (Js.to_float (Js.date##now) /. 1000.0)
+
+let manage_speed_increase speed_ref =
+  let current_time = Js.to_float (Js.date##now) /. 1000.0 in
+  let time_since_last_increase = current_time -. !last_speed_increase_time in
+  
+  if time_since_last_increase >= 10.0 then begin
+    speed_ref := !speed_ref +. 0.2;
+    last_speed_increase_time := current_time;
+  end
+
+let create_random_creet canvas_width canvas_height radius speed_ref =
+  let margin = 100. in
+  let x = margin +. Random.float (canvas_width -. 2. *. margin) in
+  let y = margin +. Random.float (canvas_height -. 2. *. margin) in
+  let vx = if Random.bool () then !speed_ref else -.(!speed_ref) in
+  let vy = if Random.bool () then !speed_ref else -.(!speed_ref) in
+  { Types.x = x; y = y; vx = vx; vy = vy; radius = radius; 
+    color = "rgb(33, 226, 126)"; is_dead = false; is_infected = false; 
+    has_bounced = false; berserk = false; mean = false; is_dragging = false; 
+    infection_time = 0. }
+
+let manage_automatic_reproduction creets canvas_width canvas_height radius speed_ref =
+  let current_time = Js.to_float (Js.date##now) /. 1000.0 in
+  let time_since_last_reproduction = current_time -. !last_reproduction_time in
+  let living_creets = List.filter (fun creet -> not creet.is_dead) creets in
+  
+  let reproduction_interval = 25.0 +. Random.float 10.0 in
+  if time_since_last_reproduction >= reproduction_interval && List.length living_creets >= 1 then begin
+    let num_new_creets = 1 + Random.int 2 in
+    let new_creets = ref [] in
+    for _ = 1 to num_new_creets do
+      let new_creet = create_random_creet canvas_width canvas_height radius speed_ref in
+      new_creets := new_creet :: !new_creets
+    done;
+    last_reproduction_time := current_time;
+    !new_creets
+  end else
+    []
