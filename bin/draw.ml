@@ -19,6 +19,11 @@ let display_creet_pos ctx creet =
   ctx##.fillStyle := Js.string "black";
   ctx##fillText (Js.string (Printf.sprintf "x: %.1f, y: %.1f" creet.x creet.y)) 10. 30.
 
+let display_creet_speed ctx creet = 
+  ctx##.font := Js.string "16px Arial";
+  ctx##.fillStyle := Js.string "black";
+  ctx##fillText (Js.string (Printf.sprintf "Speed: %.2f, %.2f" creet.vx creet.vy)) 10. 50.
+
 let draw_a_creet context color creet = 
   context##.fillStyle := Js.string color;
   context##arc creet.x creet.y creet.radius 0. (2. *. Float.pi) (Js.bool false); (* x, y, radius, startAngle, endAngle, counterclockwise *)
@@ -26,12 +31,11 @@ let draw_a_creet context color creet =
 
 let display_total_creet ctxt creet =
   ctxt##.fillStyle := Js.string "black";
-  ctxt##.font := Js.string "16px Arial serif";
+  ctxt##.font := Js.string "16px Arial";
   ctxt##fillText (Js.string (Printf.sprintf "Total: %d" (List.length creet))) 10. 30.
 
 let display_game_over ctx living_creets healthy_creets height width game_over =
    if List.length healthy_creets = 0 && List.length living_creets > 0 then begin
-    (* Toutes les créatures vivantes sont malades - GAME OVER *)
     ctx##clearRect 0. 0. (width *. 2.) height;
     ctx##.fillStyle := Js.string "rgb(0, 0, 0)";
     ctx##fillRect 0. 0. (width *. 2.) height;
@@ -44,7 +48,6 @@ let display_game_over ctx living_creets healthy_creets height width game_over =
     ()
   end
   else if List.length living_creets = 0 then begin
-    (* Toutes les créatures sont mortes - GAME OVER aussi *)
     ctx##clearRect 0. 0. (width *. 2.) height;
     ctx##.fillStyle := Js.string "rgb(0, 0, 0)";
     ctx##fillRect 0. 0. (width *. 2.) height;
