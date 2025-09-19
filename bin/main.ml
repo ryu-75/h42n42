@@ -10,13 +10,13 @@ module Lwt_js = Js_of_ocaml_lwt.Lwt_js
 let canvas_width = 1800.
 let canvas_height = 900.
 let radius = 50.
-let speed = 2.
+let speed = ref 1.
 let game_over = ref false
 
 let update_creet_pos creet =
-  let speed = 
-    if creet.is_infected then speed *. 0.75
-    else speed
+  let current_speed = 
+    if creet.is_infected then !speed *. 0.75
+    else !speed
   in
 
   if creet.berserk && creet.is_infected then begin
@@ -45,8 +45,8 @@ let update_creet_pos creet =
   if magnitude <> 0. then begin
     let normalized_vx = creet.vx /. magnitude in
     let normalized_vy = creet.vy /. magnitude in
-    creet.vx <- normalized_vx *. speed;
-    creet.vy <- normalized_vy *. speed;
+    creet.vx <- normalized_vx *. current_speed;
+    creet.vy <- normalized_vy *. current_speed;
   end;
 
   creet.x <- creet.x +. creet.vx;
@@ -55,7 +55,6 @@ let update_creet_pos creet =
   if creet.y -. creet.radius <= 0. || creet.y +. creet.radius >= canvas_height then creet.vy <- -.creet.vy
 ;;
 
-(* Boucle asynchrone séparée pour chaque créature *)
 let rec create_loop creet =
   let%lwt () = Lwt_js.sleep 0.016 in
   update_creet_pos creet;
@@ -63,52 +62,60 @@ let rec create_loop creet =
   create_loop creet
 ;;
 
-let rec animate ctx creets =
-  if !game_over then () (* Si game over, ne rien faire *)
+let rec animate ctx creets_ref =
+  if !game_over then ()
   else
+    let creets = !creets_ref in
     let living_creets = List.filter (fun creet -> not creet.is_dead) creets in
     let healthy_creets = List.filter (fun creet -> not creet.is_infected) living_creets in
-    
-    (* Vérifier game over en premier *)
     if List.length healthy_creets = 0 then begin
       display_game_over ctx living_creets healthy_creets canvas_width canvas_height game_over;
-      (* NE PAS continuer après game over *)
     end
     else begin
-      (* Seulement si pas game over, faire l'animation normale *)
       ctx##clearRect 0. 0. canvas_width canvas_height;
       ctx##.fillStyle := Js.string "white";
       ctx##fillRect 0. 0. canvas_width canvas_height;
 
-      (* Redraw the decor *)
       draw_the_hospital ctx canvas_width canvas_height;
       draw_warzone ctx canvas_width canvas_height;
       draw_death_line ctx canvas_width canvas_height;
+      display_creet_speed ctx (List.nth creets 0);
+      display_total_creet ctx living_creets;
       
-      (* Collisions avec living_creets *)
       List.iteri (fun i creet1 ->
         for j = i + 1 to List.length living_creets - 1 do
           let creet2 = List.nth living_creets j in
           handle_collision creet1 creet2;
-          display_total_creet ctx living_creets;
         done
       ) living_creets;
 
-      (* Update and draw avec living_creets *)
+      List.iter (fun creet ->
+        mean_purchase_creet creet living_creets !speed;
+      ) living_creets;
+
+      manage_speed_increase speed;
+
+      let new_creets = manage_automatic_reproduction creets canvas_width canvas_height radius speed in
+      if List.length new_creets > 0 then begin
+        creets_ref := creets @ new_creets;
+        List.iter (fun creet -> Lwt.async (fun () -> create_loop creet)) new_creets;
+      end;
+
       Lwt.async (fun () ->
         Lwt_list.iter_s (fun creet ->
-          is_colliding_with_hospital creet canvas_height;
           if not creet.is_dragging then begin
             is_colliding_with_death_line creet canvas_height;
+          end;
+          if creet.is_dragging then begin
+            is_colliding_with_hospital creet canvas_height;
           end;
           ctx##beginPath;
           draw_a_creet ctx creet.color creet radius;
           Lwt.return_unit
-        ) living_creets;  (* ICI: utiliser living_creets au lieu de creets *)
+        ) living_creets;
       );
         
-      (* Restart animation *)
-      let _ = Html.window##requestAnimationFrame (Js.wrap_callback (fun _ -> animate ctx living_creets)) in
+        let _ = Html.window##requestAnimationFrame (Js.wrap_callback (fun _ -> animate ctx creets_ref)) in
       ()
     end
 ;;
@@ -118,15 +125,14 @@ let onload _ =
    | Some canvas_element ->
        let ctx = canvas_element##getContext Html._2d_ in
 
-       (* 1. Create the list of creatures *)
        Random.self_init ();
-       let creets = 
+       let initial_creets = 
          let create_random_creet _ = 
            let margin = 100. in
            let x = margin +. Random.float (canvas_width -. 2. *. margin) in
            let y = margin +. Random.float (canvas_height -. 2. *. margin) in
-           let vx = if Random.bool () then speed else -.speed in
-           let vy = if Random.bool () then speed else -.speed in
+           let vx = if Random.bool () then !speed else -.(!speed) in
+           let vy = if Random.bool () then !speed else -.(!speed) in
            { Types.x = x; y = y; vx = vx; vy = vy; radius = radius; 
              color = "rgb(33, 226, 126)"; is_dead = false; is_infected = false; 
              has_bounced = false; berserk = false; mean = false; is_dragging = false; 
@@ -134,14 +140,12 @@ let onload _ =
          in
          Array.to_list (Array.init 18 create_random_creet) in
 
-        (* 2. System of drag for all creatures *)
-        setup_drag_system (Js.Unsafe.coerce canvas_element) creets canvas_width canvas_height;
+        let creets_ref = ref initial_creets in
+        setup_drag_system (Js.Unsafe.coerce canvas_element) initial_creets canvas_width canvas_height;
         
-        (* 3. Start the animation for all creatures *)
-        animate (Js.Unsafe.coerce ctx) creets;
-        
-        (* 4. Start async loops for each creature *)
-        List.iter (fun creet -> Lwt.async (fun () -> create_loop creet)) creets;
+        animate (Js.Unsafe.coerce ctx) creets_ref;
+         
+        List.iter (fun creet -> Lwt.async (fun () -> create_loop creet)) initial_creets;
 
    | None -> ());
   Js._true
@@ -163,5 +167,10 @@ let () = Html.window##.onload := Html.handler onload
   - Add a way to decrease the radius of the creatures ✅
   - Add a way to increase the speed of the creatures ✅
   - Add a way to decrease the speed of the creatures ✅
-  - Add a way to follow the heat of the creatures 
+  - Add a way to display game over ✅
+  - Add a way to display the number of creatures alive and dead ✅
+  - Add a way to follow the heat of the creatures ✅
+  - Add a way to change randomly the creet direction ✅
+  - Add a way to reproduce the creatures ✅
+  - Add a way to increase the game speed ✅
 **)
